@@ -1,0 +1,37 @@
+- name: Deploy Zabbix Agent on All Devices
+  hosts: all
+  become: yes
+  tasks:
+    
+    - name: Install Zabbix Agent on Linux (Ubuntu/Debian)
+      apt:
+        name: zabbix-agent
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install Zabbix Agent on Linux (CentOS/RHEL)
+      yum:
+        name: zabbix-agent
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Install Zabbix Agent on OpenWRT
+      shell: opkg update && opkg install zabbix-agentd
+      when: ansible_distribution == "OpenWrt"
+
+    - name: Copy Zabbix Agent to Windows
+      win_copy:
+        src: ./zabbix_agent.exe
+        dest: C:\zabbix_agent.exe
+      when: ansible_os_family == "Windows"
+
+    - name: Start and Enable Zabbix Agent (Linux)
+      service:
+        name: zabbix-agent
+        state: started
+        enabled: yes
+      when: ansible_os_family in ["Debian", "RedHat"]
+
+    - name: Install and Start Zabbix Agent on Windows
+      win_shell: Start-Process -FilePath "C:\zabbix_agent.exe" -ArgumentList "/install /start"
+      when: ansible_os_family == "Windows"
