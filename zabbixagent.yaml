@@ -3,7 +3,6 @@
   become: true
   vars:
     zabbix_server: "{{ lookup('env', 'zabbix_server') }}"
-    ansible_user: "{{ lookup('env', 'ansible_user') }}"
     os_types: "{{ lookup('env', 'os_types') }}"
 
   tasks:
@@ -36,15 +35,30 @@
 
     - name: Install and Start Zabbix Agent on Windows
       win_shell: |
-        Start-Process -FilePath "C:\zabbix_agent.exe" -ArgumentList "/S /server={{ zabbix_server }}"
+        $installer = "C:\\zabbix_agent.exe"
+        if (Test-Path $installer) {
+          Start-Process -FilePath $installer -ArgumentList "/S /server={{ zabbix_server }}" -Wait
+        }
       when: "'windows' in os_types"
+
+    - name: Check if OpenWRT has opkg
+      shell: "command -v opkg"
+      register: opkg_installed
+      ignore_errors: yes
+      changed_when: false
+      when: "'openwrt' in os_types"
 
     - name: Install Zabbix Agent on OpenWRT
       shell: opkg update && opkg install zabbix-agent
-      when: "'openwrt' in os_types"
+      when: "'openwrt' in os_types and opkg_installed.rc == 0"
+
+    - name: Ensure Zabbix Agent is started on OpenWRT
+      shell: "/etc/init.d/zabbix-agent restart"
+      when: "'openwrt' in os_types and opkg_installed.rc == 0"
 
   handlers:
     - name: Restart Zabbix Agent
       service:
         name: zabbix-agent
         state: restarted
+      when: "'linux' in os_types"
