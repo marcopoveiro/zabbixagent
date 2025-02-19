@@ -10,15 +10,29 @@
         update_cache: yes
       when: ansible_os_family == "Debian"
 
-    - name: Check if Zabbix Agent is installed
-      ansible.builtin.command: systemctl status zabbix-agent
+    - name: Install Zabbix Agent (OpenWRT)
+      ansible.builtin.shell: |
+        opkg update && opkg install zabbix-agent
+      when: ansible_os_family == "OpenWrt"
+
+    - name: Check if Zabbix Agent is installed and running (Linux)
+      ansible.builtin.command: systemctl is-active zabbix-agent
       register: zabbix_status
       ignore_errors: true
       changed_when: false
+      when: ansible_os_family == "Debian"
 
-    - name: Enable and Start Zabbix Agent
+    - name: Enable and Start Zabbix Agent (Linux)
       ansible.builtin.systemd:
         name: zabbix-agent
         state: started
         enabled: yes
-      when: zabbix_status.rc != 0
+      when: ansible_os_family == "Debian" and zabbix_status.rc != 0
+
+    - name: Check if Zabbix Agent is running (OpenWRT)
+      ansible.builtin.shell: |
+        /etc/init.d/zabbix-agent restart
+      register: zabbix_status_openwrt
+      ignore_errors: true
+      changed_when: false
+      when: ansible_os_family == "OpenWrt"
