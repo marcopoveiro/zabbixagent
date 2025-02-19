@@ -5,8 +5,16 @@
   vars:
     zabbix_server: "{{ lookup('env', 'zabbix_server') }}"
     os_types: "{{ lookup('env', 'os_types') }}"
-  
+
   tasks:
+    - name: Ensure passwordless sudo for Ansible user
+      lineinfile:
+        path: "/etc/sudoers.d/{{ ansible_user }}"
+        line: "{{ ansible_user }} ALL=(ALL) NOPASSWD: ALL"
+        create: yes
+        validate: "visudo -cf %s"
+      when: ansible_user != "root"
+
     - name: Ensure required packages are installed (Linux)
       apt:
         name: zabbix-agent
