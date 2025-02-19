@@ -1,58 +1,24 @@
-- name: Deploy Zabbix Agent on All Devices
+- name: Install and Ensure Zabbix Agent is Running
   hosts: all
   become: true
-  become_method: sudo
-  vars:
-    zabbix_server: "{{ lookup('env', 'zabbix_server') }}"
-    os_types: "{{ lookup('env', 'os_types') }}"
-
   tasks:
-    - name: Ensure passwordless sudo for Ansible user
-      lineinfile:
-        path: "/etc/sudoers.d/{{ ansible_user }}"
-        line: "{{ ansible_user }} ALL=(ALL) NOPASSWD: ALL"
-        create: yes
-        validate: "visudo -cf %s"
-      when: ansible_user != "root"
 
-    - name: Ensure required packages are installed (Linux)
-      apt:
+    - name: Install Zabbix Agent (Debian/Ubuntu)
+      ansible.builtin.apt:
         name: zabbix-agent
         state: present
         update_cache: yes
-      when: "'linux' in os_types"
+      when: ansible_os_family == "Debian"
 
-    - name: Configure Zabbix Agent (Linux)
-      template:
-        src: templates/zabbix_agentd.conf.j2
-        dest: /etc/zabbix/zabbix_agentd.conf
-      notify: Restart Zabbix Agent
-      when: "'linux' in os_types"
+    - name: Check if Zabbix Agent is installed
+      ansible.builtin.command: systemctl status zabbix-agent
+      register: zabbix_status
+      ignore_errors: true
+      changed_when: false
 
-    - name: Ensure Zabbix Agent is started and enabled (Linux)
-      service:
+    - name: Enable and Start Zabbix Agent
+      ansible.builtin.systemd:
         name: zabbix-agent
         state: started
         enabled: yes
-      when: "'linux' in os_types"
-
-    - name: Download Zabbix Agent for Windows
-      win_get_url:
-        url: "https://cdn.zabbix.com/zabbix/binaries/stable/6.0/agent/windows/zabbix_agent-6.0.0-windows-amd64.exe"
-        dest: "C:\\zabbix_agent.exe"
-      when: "'windows' in os_types"
-
-    - name: Install and Start Zabbix Agent on Windows
-      win_shell: |
-        Start-Process -FilePath "C:\zabbix_agent.exe" -ArgumentList "/S /server={{ zabbix_server }}"
-      when: "'windows' in os_types"
-
-    - name: Install Zabbix Agent on OpenWRT
-      shell: opkg update && opkg install zabbix-agent
-      when: "'openwrt' in os_types"
-
-  handlers:
-    - name: Restart Zabbix Agent
-      service:
-        name: zabbix-agent
-        state: restarted
+      when: zabbix_status.rc != 0
