@@ -1,37 +1,50 @@
 - name: Deploy Zabbix Agent on All Devices
   hosts: all
-  become: yes
+  become: true
+  vars:
+    zabbix_server: "{{ lookup('env', 'zabbix_server') }}"
+    ansible_user: "{{ lookup('env', 'ansible_user') }}"
+    os_types: "{{ lookup('env', 'os_types') }}"
+
   tasks:
-    
-    - name: Install Zabbix Agent on Linux (Ubuntu/Debian)
+    - name: Ensure required packages are installed (Linux)
       apt:
         name: zabbix-agent
         state: present
-      when: ansible_os_family == "Debian"
+        update_cache: yes
+      when: "'linux' in os_types"
 
-    - name: Install Zabbix Agent on Linux (CentOS/RHEL)
-      yum:
-        name: zabbix-agent
-        state: present
-      when: ansible_os_family == "RedHat"
+    - name: Configure Zabbix Agent (Linux)
+      template:
+        src: zabbix_agentd.conf.j2
+        dest: /etc/zabbix/zabbix_agentd.conf
+      notify: Restart Zabbix Agent
+      when: "'linux' in os_types"
 
-    - name: Install Zabbix Agent on OpenWRT
-      shell: opkg update && opkg install zabbix-agentd
-      when: ansible_distribution == "OpenWrt"
-
-    - name: Copy Zabbix Agent to Windows
-      win_copy:
-        src: ./zabbix_agent.exe
-        dest: C:\zabbix_agent.exe
-      when: ansible_os_family == "Windows"
-
-    - name: Start and Enable Zabbix Agent (Linux)
+    - name: Ensure Zabbix Agent is started and enabled (Linux)
       service:
         name: zabbix-agent
         state: started
         enabled: yes
-      when: ansible_os_family in ["Debian", "RedHat"]
+      when: "'linux' in os_types"
+
+    - name: Download Zabbix Agent for Windows
+      win_get_url:
+        url: "https://cdn.zabbix.com/zabbix/binaries/stable/6.0/agent/windows/zabbix_agent-6.0.0-windows-amd64.exe"
+        dest: "C:\\zabbix_agent.exe"
+      when: "'windows' in os_types"
 
     - name: Install and Start Zabbix Agent on Windows
-      win_shell: Start-Process -FilePath "C:\zabbix_agent.exe" -ArgumentList "/install /start"
-      when: ansible_os_family == "Windows"
+      win_shell: |
+        Start-Process -FilePath "C:\zabbix_agent.exe" -ArgumentList "/S /server={{ zabbix_server }}"
+      when: "'windows' in os_types"
+
+    - name: Install Zabbix Agent on OpenWRT
+      shell: opkg update && opkg install zabbix-agent
+      when: "'openwrt' in os_types"
+
+  handlers:
+    - name: Restart Zabbix Agent
+      service:
+        name: zabbix-agent
+        state: restarted
