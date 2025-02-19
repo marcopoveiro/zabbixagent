@@ -13,14 +13,14 @@
         state: present
         update_cache: yes
       when: "'linux' in os_types"
-    
+
     - name: Configure Zabbix Agent (Linux)
       template:
         src: templates/zabbix_agentd.conf.j2
         dest: /etc/zabbix/zabbix_agentd.conf
       notify: Restart Zabbix Agent
       when: "'linux' in os_types"
-    
+
     - name: Ensure Zabbix Agent is started and enabled (Linux)
       service:
         name: zabbix-agent
